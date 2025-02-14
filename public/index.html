@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRUD ApplicationR</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/spectre.css/0.5.9/spectre.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/spectre.css/0.5.9/spectre-icons.min.css">
+    <style>
+        .drawer {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 100%;
+            max-width: 400px;
+            height: 100%;
+            background: #fff;
+            padding: 1rem;
+            transform: translateX(100%);
+            transition: transform 0.3s ease-in-out;
+            z-index: 300;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .drawer.open {
+            transform: translateX(0);
+        }
+
+        .item-card {
+            margin-bottom: 1rem;
+        }
+
+        .container {
+            padding: 1rem;
+        }
+
+        .btn-link {
+            padding: 0;
+        }
+
+        .pagination {
+            margin: 2rem 0;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            z-index: 400;
+            display: none;
+            animation: slideIn 0.3s ease-in-out;
+        }
+
+        .tile-view {
+            width: 100%;
+            margin-bottom: 0.5rem;
+            padding: 1rem;
+            background: #fff;
+            border-radius: 0.2rem;
+            box-shadow: 0 0.05rem 0.2rem rgba(48, 55, 66, .3);
+        }
+
+        .tile-view:hover {
+            box-shadow: 0 0.1rem 0.4rem rgba(48, 55, 66, .3);
+            transition: all 0.3s ease;
+        }
+
+        .btn-group .btn.active {
+            background: #5755d9;
+            color: #fff;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Toast Notification -->
+    <div id="toast" class="toast"></div>
+
+    <div class="container grid-lg">
+        <div class="columns py-2">
+            <div class="column col-4">
+                <h2>Items Management</h2>
+            </div>
+            <div class="column col-3">
+                <div class="form-group">
+                    <input type="text" id="searchInput" class="form-input" placeholder="Search items..."
+                        onkeyup="handleSearch(event)">
+                </div>
+            </div>
+            <div class="column col-1">
+                <div class="btn-group">
+                    <button onclick="toggleView('card')" id="cardViewBtn" class="btn btn-sm active">
+                        <i class="icon icon-apps"></i>
+                    </button>
+                    <button onclick="toggleView('tile')" id="tileViewBtn" class="btn btn-sm">
+                        <i class="icon icon-menu"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="column col-2">
+                <div id="itemSummary" class="text-gray text-center"></div>
+            </div>
+            <div class="column col-2 text-right">
+                <button onclick="openDrawer()" class="btn btn-primary">
+                    <i class="icon icon-plus"></i> Add New
+                </button>
+            </div>
+        </div>
+
+        <!-- Loading and Error States -->
+        <div id="loadingState" class="text-center d-none">
+            <div class="loading loading-lg"></div>
+        </div>
+
+        <div id="errorState" class="text-center d-none">
+            <div class="empty">
+                <div class="empty-icon">
+                    <i class="icon icon-3x icon-stop"></i>
+                </div>
+                <p class="empty-title h5">Error Loading Items</p>
+                <p class="empty-subtitle">Please try again later.</p>
+                <div class="empty-action">
+                    <button onclick="retryLoading()" class="btn btn-primary">
+                        <i class="icon icon-refresh"></i> Retry
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="emptyState" class="text-center d-none">
+            <div class="empty">
+                <div class="empty-icon">
+                    <i class="icon icon-3x icon-inbox"></i>
+                </div>
+                <p class="empty-title h5">No Items Found</p>
+                <p class="empty-subtitle">Start by adding a new item.</p>
+                <div class="empty-action">
+                    <button onclick="openDrawer()" class="btn btn-primary">
+                        <i class="icon icon-plus"></i> Add First Item
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Items List -->
+        <div id="itemsList" class="columns">
+            <!-- Items will be inserted here -->
+        </div>
+
+        <!-- Pagination -->
+        <div class="columns">
+            <div class="column col-12">
+                <ul class="pagination">
+                    <!-- Pagination will be inserted here -->
+                </ul>
+            </div>
+        </div>
+
+        <!-- Drawer -->
+        <div id="drawer" class="drawer">
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="columns">
+                        <div class="column col-8">
+                            <h3 id="drawerTitle" class="panel-title">Add New Item</h3>
+                        </div>
+                        <div class="column col-4 text-right">
+                            <button onclick="closeDrawer()" class="btn btn-link">
+                                <i class="icon icon-cross"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel-body">
+                    <form id="itemForm" onsubmit="handleSubmit(event)">
+                        <input type="hidden" id="itemId" value="0">
+
+                        <div class="form-group">
+                            <label class="form-label" for="name">Name</label>
+                            <input type="text" id="name" class="form-input" required placeholder="Enter item name">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="description">Description</label>
+                            <textarea id="description" class="form-input" required rows="4"
+                                placeholder="Enter item description"></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <button type="submit" class="btn btn-primary btn-block">
+                                Save
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // API URL
+        const API_URL = 'http://localhost:3000/api';
+
+        // Current page state
+        let currentPage = 1;
+        let totalPages = 1;
+        let currentSearchTerm = '';
+        let currentView = 'card'; // Default view mode
+
+        // State management
+        let isLoading = false;
+        let hasError = false;
+        let searchTimeout = null;
+
+        // Toggle view function
+        function toggleView(viewType) {
+            currentView = viewType;
+
+            // Update button states
+            document.getElementById('cardViewBtn').classList.toggle('active', viewType === 'card');
+            document.getElementById('tileViewBtn').classList.toggle('active', viewType === 'tile');
+
+            // Re-render items with new view
+            const itemsList = document.getElementById('itemsList');
+            if (itemsList.children.length > 0) {
+                renderItems(window.currentItems || []);
+            }
+        }
+
+        // Show/hide states
+        function toggleStates(loading, error, empty) {
+            document.getElementById('loadingState').classList.toggle('d-none', !loading);
+            document.getElementById('errorState').classList.toggle('d-none', !error);
+            document.getElementById('emptyState').classList.toggle('d-none', !empty);
+            document.getElementById('itemsList').classList.toggle('d-none', loading || error || empty);
+            document.querySelector('.pagination').classList.toggle('d-none', loading || error || empty);
+        }
+
+        // Update summary
+        function updateSummary(totalItems) {
+            const summary = document.getElementById('itemSummary');
+            summary.textContent = `Total Items: ${totalItems}`;
+        }
+
+        // Retry loading
+        async function retryLoading() {
+            await fetchItems(currentPage);
+        }
+
+        // Handle search input
+        function handleSearch(event) {
+            const searchTerm = event.target.value.trim();
+
+            // Clear previous timeout
+            if (searchTimeout) {
+                clearTimeout(searchTimeout);
+            }
+
+            // If search term is less than 3 characters
+            if (searchTerm.length < 3) {
+                currentSearchTerm = '';
+                fetchItems(1);
+                return;
+            }
+
+            // Only search if we have 3 or more characters
+            if (searchTerm.length >= 3) {
+                searchTimeout = setTimeout(() => {
+                    console.log('Searching for:', searchTerm);
+                    currentSearchTerm = searchTerm;
+                    fetchItems(1);
+                }, 300); // Debounce for 300ms
+            }
+        }
+
+        // Fetch items with pagination and search
+        async function fetchItems(page = 1) {
+            toggleStates(true, false, false);
+            isLoading = true;
+
+            try {
+                let url = `${API_URL}/items?page=${page}`;
+                if (currentSearchTerm) {
+                    url += `&search=${encodeURIComponent(currentSearchTerm)}`;
+                }
+                console.log('Fetching URL:', url);
+
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error('Failed to fetch items');
+                }
+
+                const data = await response.json();
+                currentPage = data.currentPage;
+                totalPages = data.totalPages;
+
+                // Show empty state if no items
+                if (data.totalItems === 0) {
+                    toggleStates(false, false, true);
+                } else {
+                    toggleStates(false, false, false);
+                    renderItems(data.items);
+                    renderPagination();
+                }
+
+                updateSummary(data.totalItems);
+                hasError = false;
+            } catch (error) {
+                console.error('Error fetching items:', error);
+                toggleStates(false, true, false);
+                hasError = true;
+            } finally {
+                isLoading = false;
+            }
+        }
+
+        // Render items list
+        function renderItems(items) {
+            window.currentItems = items; // Store current items for view toggling
+            const itemsList = document.getElementById('itemsList');
+
+            if (currentView === 'card') {
+                // Card view
+                itemsList.innerHTML = items.map(item => `
+                    <div class="column col-4 col-md-6 col-sm-12">
+                        <div class="card item-card">
+                            <div class="card-header">
+                                <div class="card-title h5">${item.name}</div>
+                            </div>
+                            <div class="card-body">
+                                ${item.description}
+                            </div>
+                            <div class="card-footer">
+                                <div class="btn-group btn-group-block">
+                                    <button 
+                                        onclick="editItem(${item.id})"
+                                        class="btn btn-link text-primary"
+                                    >
+                                        <i class="icon icon-edit"></i> Edit
+                                    </button>
+                                    <button 
+                                        onclick="deleteItem(${item.id})"
+                                        class="btn btn-link text-error"
+                                    >
+                                        <i class="icon icon-delete"></i> Delete
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                // Tile view
+                itemsList.innerHTML = items.map(item => `
+                    <div class="column col-12">
+                        <div class="tile-view">
+                            <div class="columns">
+                                <div class="column col-6">
+                                    <h5>${item.name}</h5>
+                                    <p class="text-gray">${item.description}</p>
+                                </div>
+                                <div class="column col-6 text-right">
+                                    <button 
+                                        onclick="editItem(${item.id})"
+                                        class="btn btn-link text-primary"
+                                    >
+                                        <i class="icon icon-edit"></i> Edit
+                                    </button>
+                                    <button 
+                                        onclick="deleteItem(${item.id})"
+                                        class="btn btn-link text-error"
+                                    >
+                                        <i class="icon icon-delete"></i> Delete
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        // Render pagination
+        // Render pagination
+        function renderPagination() {
+            const pagination = document.querySelector('.pagination');
+            let html = '';
+
+            // Previous button
+            html += `
+        <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+            <a href="#" onclick="changePage(${currentPage - 1})" class="page-link">
+                Previous
+            </a>
+        </li>
+    `;
+
+            // Page numbers
+            for (let i = 1; i <= totalPages; i++) {
+                html += `
+            <li class="page-item ${currentPage === i ? 'active' : ''}">
+                <a href="#" onclick="changePage(${i})" class="page-link">
+                    ${i}
+                </a>
+            </li>
+        `;
+            }
+
+            // Next button
+            html += `
+        <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+            <a href="#" onclick="changePage(${currentPage + 1})" class="page-link">
+                Next
+            </a>
+        </li>
+    `;
+
+            pagination.innerHTML = html;
+        }
+
+        // Change page
+        function changePage(page) {
+            if (page < 1 || page > totalPages || page === currentPage) return;
+            fetchItems(page);
+        }
+
+        // Open drawer
+        function openDrawer() {
+            document.getElementById('drawer').classList.add('open');
+            resetForm();
+        }
+
+        // Close drawer
+        function closeDrawer() {
+            document.getElementById('drawer').classList.remove('open');
+            resetForm();
+        }
+
+        // Reset form
+        function resetForm() {
+            const form = document.getElementById('itemForm');
+            const idField = document.getElementById('itemId');
+            const titleField = document.getElementById('drawerTitle');
+
+            if (form) form.reset();
+            if (idField) idField.value = '0';
+            if (titleField) titleField.textContent = 'Add New Item';
+
+            // Explicitly clear input fields
+            const nameField = document.getElementById('name');
+            const descField = document.getElementById('description');
+            if (nameField) nameField.value = '';
+            if (descField) descField.value = '';
+        }
+
+        // Edit item
+        async function editItem(id) {
+            try {
+                const response = await fetch(`${API_URL}/items/${id}`);
+                if (!response.ok) {
+                    throw new Error('Failed to fetch item');
+                }
+                const item = await response.json();
+
+                // Debug log to check the received item
+                console.log('Editing item:', item);
+
+                // First open the drawer
+                openDrawer();
+
+                // Then set the values after a small delay to ensure the form is visible
+                setTimeout(() => {
+                    const idField = document.getElementById('itemId');
+                    const nameField = document.getElementById('name');
+                    const descField = document.getElementById('description');
+                    const titleField = document.getElementById('drawerTitle');
+
+                    if (idField && nameField && descField && titleField) {
+                        idField.value = item.id;
+                        nameField.value = item.name;
+                        descField.value = item.description;
+                        titleField.textContent = 'Edit Item';
+                    } else {
+                        console.error('Form fields not found');
+                    }
+                }, 100);
+
+            } catch (error) {
+                console.error('Error fetching item:', error);
+                showToast('Error loading item', 'error');
+            }
+        }
+
+        // Delete item
+        async function deleteItem(id) {
+            if (!confirm('Are you sure you want to delete this item?')) return;
+
+            try {
+                const response = await fetch(`${API_URL}/items/${id}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to delete item');
+                }
+
+                await fetchItems(currentPage);
+                showToast('Item deleted successfully!');
+            } catch (error) {
+                console.error('Error deleting item:', error);
+                showToast('Error deleting item', 'error');
+            }
+        }
+
+        // Handle form submission
+        async function handleSubmit(event) {
+            event.preventDefault();
+
+            const id = parseInt(document.getElementById('itemId').value);
+            const name = document.getElementById('name').value;
+            const description = document.getElementById('description').value;
+
+            const item = { name, description };
+            const method = id === 0 ? 'POST' : 'PUT';
+            const url = id === 0 ? `${API_URL}/items` : `${API_URL}/items/${id}`;
+
+            try {
+                const response = await fetch(url, {
+                    method,
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(item)
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to save item');
+                }
+
+                await fetchItems(currentPage);
+                closeDrawer();
+                showToast(id === 0 ? 'Item created successfully!' : 'Item updated successfully!');
+            } catch (error) {
+                console.error('Error saving item:', error);
+                showToast('Error saving item', 'error');
+            }
+        }
+
+        // Show toast notification
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.className = `toast toast-${type}`;
+            toast.textContent = message;
+            toast.style.display = 'block';
+
+            setTimeout(() => {
+                toast.style.display = 'none';
+            }, 3000);
+        }
+
+        // Initial load
+        fetchItems(1);
+    </script>
+</body>
+
+</html>
