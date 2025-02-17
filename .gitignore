@@ -25,3 +25,6 @@ go.work.sum
 .env
 app.db
 app.log
+PUSHER.md
+__app.db
+.DS_Store
