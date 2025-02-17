@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logging Out - CRUD Application</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/spectre.css/0.5.9/spectre.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/spectre.css/0.5.9/spectre-icons.min.css">
+    <style>
+        .logout-container {
+            max-width: 400px;
+            margin: 4rem auto;
+            padding: 1rem;
+            text-align: center;
+        }
+        .logout-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            color: #5755d9;
+        }
+        .loading {
+            margin: 1rem 0;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logout-container fade-in">
+            <div class="empty">
+                <div class="empty-icon">
+                    <i class="icon icon-3x icon-shutdown"></i>
+                </div>
+                <p class="empty-title h5">Logging you out...</p>
+                <p class="empty-subtitle">Please wait while we securely log you out.</p>
+                <div class="loading loading-lg"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function performLogout() {
+            try {
+                // Clear all authentication data
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                localStorage.removeItem('remember');
+                localStorage.removeItem('savedEmail');
+
+                // Optional: Call logout endpoint if you have one
+                const token = localStorage.getItem('token');
+                if (token) {
+                    try {
+                        await fetch('http://localhost:3000/api/logout', {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${token}`
+                            }
+                        });
+                    } catch (error) {
+                        console.warn('Error calling logout endpoint:', error);
+                    }
+                }
+
+                // Redirect to login page after a short delay
+                setTimeout(() => {
+                    window.location.href = '/login.html';
+                }, 1000);
+            } catch (error) {
+                console.error('Error during logout:', error);
+                // Redirect anyway
+                window.location.href = '/login.html';
+            }
+        }
+
+        // Start logout process as soon as page loads
+        window.onload = performLogout;
+    </script>
+</body>
+</html>

@@ -225,6 +225,16 @@
         let hasError = false;
         let searchTimeout = null;
 
+
+        // Add this helper function for headers
+        function getAuthHeaders() {
+            const token = localStorage.getItem('token');
+            return {
+                'Content-Type': 'application/json',
+                'Authorization': token ? `Bearer ${token}` : ''
+            };
+        }
+
         // Toggle view function
         function toggleView(viewType) {
             currentView = viewType;
@@ -296,9 +306,17 @@
                 if (currentSearchTerm) {
                     url += `&search=${encodeURIComponent(currentSearchTerm)}`;
                 }
-                console.log('Fetching URL:', url);
 
-                const response = await fetch(url);
+                const response = await fetch(url, {
+                    headers: getAuthHeaders()
+                });
+
+                if (response.status === 401) {
+                    // Unauthorized - redirect to login
+                    window.location.href = '/login.html';
+                    return;
+                }
+
                 if (!response.ok) {
                     throw new Error('Failed to fetch items');
                 }
@@ -469,9 +487,12 @@
         // Edit item
         async function editItem(id) {
             try {
-                const response = await fetch(`${API_URL}/items/${id}`);
-                if (!response.ok) {
-                    throw new Error('Failed to fetch item');
+                const response = await fetch(`${API_URL}/items/${id}`, {
+                    headers: getAuthHeaders()
+                });
+                if (response.status === 401) {
+                    window.location.href = '/login.html';
+                    return;
                 }
                 const item = await response.json();
 
@@ -510,11 +531,13 @@
 
             try {
                 const response = await fetch(`${API_URL}/items/${id}`, {
-                    method: 'DELETE'
+                    method: 'DELETE',
+                    headers: getAuthHeaders()
                 });
 
-                if (!response.ok) {
-                    throw new Error('Failed to delete item');
+                if (response.status === 401) {
+                    window.location.href = '/login.html';
+                    return;
                 }
 
                 await fetchItems(currentPage);
@@ -540,14 +563,13 @@
             try {
                 const response = await fetch(url, {
                     method,
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: getAuthHeaders(),
                     body: JSON.stringify(item)
                 });
 
-                if (!response.ok) {
-                    throw new Error('Failed to save item');
+                if (response.status === 401) {
+                    window.location.href = '/login.html';
+                    return;
                 }
 
                 await fetchItems(currentPage);
@@ -557,6 +579,26 @@
                 console.error('Error saving item:', error);
                 showToast('Error saving item', 'error');
             }
+        }
+
+
+        // Add logout functionality
+        function addLogoutButton() {
+            const header = document.querySelector('.columns.py-2');
+            const logoutColumn = document.createElement('div');
+            logoutColumn.className = 'column col-2 text-right';
+            logoutColumn.innerHTML = `
+                <button onclick="handleLogout()" class="btn btn-link">
+                    <i class="icon icon-shutdown"></i> Logout
+                </button>
+            `;
+            header.appendChild(logoutColumn);
+        }
+
+        function handleLogout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = '/login.html';
         }
 
         // Show toast notification
@@ -571,8 +613,32 @@
             }, 3000);
         }
 
-        // Initial load
-        fetchItems(1);
+        // Add user info display
+        function displayUserInfo() {
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            const header = document.querySelector('.columns.py-2');
+            const userColumn = document.createElement('div');
+            userColumn.className = 'column col-2';
+            userColumn.innerHTML = `
+        <span class="text-gray">
+            <i class="icon icon-people"></i> ${user.email || 'User'}
+        </span>
+        `;
+            header.insertBefore(userColumn, header.children[header.children.length - 1]);
+        }
+
+        // Update window.onload to include new features
+        window.onload = function () {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = '/login.html';
+                return;
+            }
+
+            addLogoutButton();
+            displayUserInfo();
+            fetchItems(1);
+        };
     </script>
 </body>
 
