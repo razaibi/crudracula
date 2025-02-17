@@ -4,6 +4,7 @@ import (
 	"crudracula/dal"
 	"crudracula/logger"
 	"crudracula/logic"
+	"crudracula/middlewares"
 	"os"
 	"time"
 
@@ -36,12 +37,22 @@ func main() {
 	// Serve static files
 	app.Static("/", "./public")
 
-	// CRUD endpoints
-	app.Get("/api/items", logic.GetItems)
-	app.Get("/api/items/:id", logic.GetItem)
-	app.Post("/api/items", logic.CreateItem)
-	app.Put("/api/items/:id", logic.UpdateItem)
-	app.Delete("/api/items/:id", logic.DeleteItem)
+	// Public auth endpoints
+	app.Post("/api/signup", logic.Signup)
+	app.Post("/api/login", logic.Login)
+	app.Post("/api/request-reset", logic.RequestPasswordReset)
+	app.Post("/api/reset-password", logic.ResetPassword)
+
+	// Protected routes group
+	api := app.Group("/api")
+	api.Use(middlewares.AuthMiddleware) // Apply auth middleware only to this group
+
+	// CRUD endpoints (protected)
+	api.Get("/items", logic.GetItems)
+	api.Get("/items/:id", logic.GetItem)
+	api.Post("/items", logic.CreateItem)
+	api.Put("/items/:id", logic.UpdateItem)
+	api.Delete("/items/:id", logic.DeleteItem)
 
 	port := os.Getenv("PORT")
 	if port == "" {
