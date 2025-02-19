@@ -145,7 +145,7 @@
             </form>
 
             <div class="auth-links">
-                <a href="/login.html" class="text-primary">Already have an account? Login</a>
+                <a href="/login" class="text-primary">Already have an account? Login</a>
             </div>
         </div>
     </div>
@@ -252,7 +252,7 @@
                 
                 // Redirect to login page after short delay
                 setTimeout(() => {
-                    window.location.href = '/login.html';
+                    window.location.href = '/login';
                 }, 1500);
             } catch (error) {
                 showToast(error.message, 'error');
