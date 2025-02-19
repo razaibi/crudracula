@@ -5,11 +5,14 @@ import (
 	"crudracula/logger"
 	"crudracula/logic"
 	"crudracula/middlewares"
+	"encoding/json"
 	"os"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/compress"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/template/html/v2"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/rs/zerolog/log"
 )
@@ -24,18 +27,58 @@ func main() {
 	defer dal.DB.Close()
 	log.Info().Msg("Database initialized successfully")
 
+	// Set Views Engine with proper configuration
+	engine := html.New("./views", ".html")
+	engine.Reload(true) // Enable reloading in development
+	engine.Debug(true)  // Enable debug mode in development
+
+	// Configure Fiber with proper settings
 	app := fiber.New(fiber.Config{
 		ErrorHandler: customErrorHandler,
+		Views:        engine,
+		// Add proper JSON settings
+		JSONEncoder: json.Marshal,
+		JSONDecoder: json.Unmarshal,
 	})
 
-	// Enable CORS
-	app.Use(cors.New())
+	// Enable CORS with specific configuration
+	app.Use(cors.New(cors.Config{
+		AllowOrigins: "*",
+		AllowMethods: "GET,POST,PUT,DELETE,OPTIONS",
+		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
+	}))
 
 	// Add request logging middleware
 	app.Use(requestLogger)
 
-	// Serve static files
-	app.Static("/", "./public")
+	// Enable Gzip Compression with proper settings
+	app.Use(compress.New(compress.Config{
+		Level: compress.LevelBestSpeed,
+	}))
+
+	// Serve static files with specific configuration
+	app.Static("/", "./public", fiber.Static{
+		Compress:      true,
+		Browse:        false,
+		Index:         "index.html",
+		CacheDuration: 24 * time.Hour,
+		MaxAge:        24 * 60 * 60,
+	})
+
+	// Serve CSS files specifically
+	app.Static("/css", "./public/css", fiber.Static{
+		Compress:      true,
+		Browse:        false,
+		CacheDuration: 24 * time.Hour,
+		MaxAge:        24 * 60 * 60,
+	})
+
+	// Route for serving index page
+	app.Get("/", logic.GetItemsPage)
+	app.Get("/login", logic.GetLoginPage)
+	app.Get("/logout", logic.GetLogoutPage)
+	app.Get("/signup", logic.GetSignUpPage)
+	app.Get("/reset-password", logic.GetResetPasswordPage)
 
 	// Public auth endpoints
 	app.Post("/api/signup", logic.Signup)
@@ -45,7 +88,7 @@ func main() {
 
 	// Protected routes group
 	api := app.Group("/api")
-	api.Use(middlewares.AuthMiddleware) // Apply auth middleware only to this group
+	api.Use(middlewares.AuthMiddleware)
 
 	// CRUD endpoints (protected)
 	api.Get("/items", logic.GetItems)
