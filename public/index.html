@@ -8,6 +8,105 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/spectre.css/0.5.9/spectre.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/spectre.css/0.5.9/spectre-icons.min.css">
     <style>
+        .header-container {
+            width: 100%;
+            background-color: #ffffff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .main-header {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #333;
+            text-decoration: none;
+        }
+
+        .search-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .search-bar {
+            flex: 1;
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        .action-button {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 4px;
+            background-color: #f0f0f0;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        .action-button:hover {
+            background-color: #e0e0e0;
+        }
+
+        .items-count {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .add-new-button {
+            padding: 0.5rem 1rem;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        .add-new-button:hover {
+            background-color: #0056b3;
+        }
+
+        .sub-header {
+            background-color: #f8f9fa;
+            padding: 0.5rem 0;
+            border-top: 1px solid #eee;
+        }
+
+        .sub-header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9rem;
+        }
+
+        .user-greeting {
+            color: #333;
+        }
+
+        .logout-link {
+            color: #666;
+            text-decoration: none;
+        }
+
+        .logout-link:hover {
+            color: #333;
+            text-decoration: underline;
+        }
+
         .drawer {
             position: fixed;
             top: 0;
@@ -88,34 +187,45 @@
     <!-- Toast Notification -->
     <div id="toast" class="toast"></div>
 
+    <div class="header-container">
+        <div class="main-header">
+            <a href="#" class="logo">Items Management</a>
+            <div class="search-container">
+                <input type="text" 
+                    class="search-bar"
+                    id="searchInput" 
+                    placeholder="Search items..."
+                    onkeyup="handleSearch(event)"
+                >
+                <button class="action-button" 
+                    onclick="toggleView('card')" id="cardViewBtn" 
+                >
+                    <i class="icon icon-apps"></i>
+                </button>
+                <button class="action-button"
+                    onclick="toggleView('tile')" id="tileViewBtn" 
+                >
+                    <i class="icon icon-menu"></i>
+                </button>
+            </div>
+            <span class="items-count" id="itemSummary" ></span>
+            <button class="add-new-button" onclick="openDrawer()">
+                <i class="icon icon-plus"></i> 
+            </button>
+        </div>
+        <div class="sub-header">
+            <div class="sub-header-content" id="subHeader">
+                <span class="user-greeting" id="userGreeting"></span>
+            </div>
+        </div>
+    </div>
+
     <div class="container grid-lg">
         <div class="columns py-2">
-            <div class="column col-4">
-                <h2>Items Management</h2>
-            </div>
-            <div class="column col-3">
-                <div class="form-group">
-                    <input type="text" id="searchInput" class="form-input" placeholder="Search items..."
-                        onkeyup="handleSearch(event)">
-                </div>
-            </div>
             <div class="column col-1">
-                <div class="btn-group">
-                    <button onclick="toggleView('card')" id="cardViewBtn" class="btn btn-sm active">
-                        <i class="icon icon-apps"></i>
-                    </button>
-                    <button onclick="toggleView('tile')" id="tileViewBtn" class="btn btn-sm">
-                        <i class="icon icon-menu"></i>
-                    </button>
-                </div>
             </div>
             <div class="column col-2">
-                <div id="itemSummary" class="text-gray text-center"></div>
-            </div>
-            <div class="column col-2 text-right">
-                <button onclick="openDrawer()" class="btn btn-primary">
-                    <i class="icon icon-plus"></i> Add New
-                </button>
+                <div class="text-gray text-center"></div>
             </div>
         </div>
 
@@ -585,14 +695,13 @@
         // Add logout functionality
         function addLogoutButton() {
             const header = document.querySelector('.columns.py-2');
+            const subHeader = document.getElementById('subHeader');
             const logoutColumn = document.createElement('div');
-            logoutColumn.className = 'column col-2 text-right';
             logoutColumn.innerHTML = `
-                <button onclick="handleLogout()" class="btn btn-link">
-                    <i class="icon icon-shutdown"></i> Logout
-                </button>
+                <a onclick="handleLogout()" class="logout-link">Logout</a>
             `;
             header.appendChild(logoutColumn);
+            subHeader.appendChild(logoutColumn);
         }
 
         function handleLogout() {
@@ -617,14 +726,8 @@
         function displayUserInfo() {
             const user = JSON.parse(localStorage.getItem('user') || '{}');
             const header = document.querySelector('.columns.py-2');
-            const userColumn = document.createElement('div');
-            userColumn.className = 'column col-2';
-            userColumn.innerHTML = `
-        <span class="text-gray">
-            <i class="icon icon-people"></i> ${user.email || 'User'}
-        </span>
-        `;
-            header.insertBefore(userColumn, header.children[header.children.length - 1]);
+            var userNameInfo =  `${user.email || 'User'}`;
+            document.getElementById('userGreeting').innerHTML = `Hi ${userNameInfo}`;
         }
 
         // Update window.onload to include new features
