@@ -16,6 +16,18 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+func GetLoginPage(c *fiber.Ctx) error {
+	return c.Render("login", fiber.Map{
+		"title": "Login - Crudracula",
+	})
+}
+
+func GetLogoutPage(c *fiber.Ctx) error {
+	return c.Render("logout", fiber.Map{
+		"title": "Login - Crudracula",
+	})
+}
+
 func Signup(c *fiber.Ctx) error {
 	req := new(models.SignupRequest)
 	if err := c.BodyParser(req); err != nil {
