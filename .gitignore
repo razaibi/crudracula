@@ -28,3 +28,5 @@ app.log
 PUSHER.md
 __app.db
 .DS_Store
+public/css/spectre-icons.min.css.fiber.gz
+public/css/style.min.css.fiber.gz
