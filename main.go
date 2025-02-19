@@ -2,10 +2,10 @@ package main
 
 import (
 	"crudracula/dal"
+	"crudracula/encoders"
 	"crudracula/logger"
 	"crudracula/logic"
 	"crudracula/middlewares"
-	"encoding/json"
 	"os"
 	"time"
 
@@ -37,8 +37,8 @@ func main() {
 		ErrorHandler: customErrorHandler,
 		Views:        engine,
 		// Add proper JSON settings
-		JSONEncoder: json.Marshal,
-		JSONDecoder: json.Unmarshal,
+		JSONEncoder: encoders.Marshal,
+		JSONDecoder: encoders.Unmarshal,
 	})
 
 	// Enable CORS with specific configuration
