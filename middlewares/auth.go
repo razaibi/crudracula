@@ -40,9 +40,9 @@ func isPublicPath(path string) bool {
 		"/api/signup",
 		"/api/request-reset",
 		"/api/reset-password",
-		"/login.html",
-		"/signup.html",
-		"/reset-password.html",
+		"/login",
+		"/signup",
+		"/reset-password",
 	}
 
 	for _, pp := range publicPaths {
