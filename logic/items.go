@@ -35,6 +35,24 @@ func getUserIDFromToken(c *fiber.Ctx) (int, error) {
 	return userID, nil
 }
 
+func GetItemsPage(c *fiber.Ctx) error {
+	return c.Render("index", fiber.Map{
+		"title": "Crudracula",
+	})
+}
+
+func GetResetPasswordPage(c *fiber.Ctx) error {
+	return c.Render("reset-password", fiber.Map{
+		"title": "Crudracula",
+	})
+}
+
+func GetSignUpPage(c *fiber.Ctx) error {
+	return c.Render("signup", fiber.Map{
+		"title": "Crudracula",
+	})
+}
+
 func GetItems(c *fiber.Ctx) error {
 	// Verify authentication
 	userID, err := getUserIDFromToken(c)
