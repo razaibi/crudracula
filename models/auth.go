@@ -5,7 +5,8 @@ import "time"
 type User struct {
 	ID                int        `json:"id"`
 	Email             string     `json:"email"`
-	Password          string     `json:"-"` // Never send password in JSON
+	Password          string     `json:"-"`       // Never send password in JSON
+	RoleID            *int       `json:"role_id"` // Added RoleID field
 	ResetToken        *string    `json:"-"`
 	ResetTokenExpires *time.Time `json:"-"`
 	CreatedAt         time.Time  `json:"created_at"`
