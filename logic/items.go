@@ -2,10 +2,10 @@ package logic
 
 import (
 	"crudracula/dal"
-	"crudracula/logger"
 	"crudracula/models"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -17,7 +17,12 @@ import (
 func getUserIDFromToken(c *fiber.Ctx) (int, error) {
 	auth := c.Get("Authorization")
 	if auth == "" {
-		return 0, errors.New("no authorization header")
+		err := errors.New("no authorization header provided in request")
+		log.Error().Err(err).
+			Str("method", c.Method()).
+			Str("path", c.Path()).
+			Msg("Authentication header missing")
+		return 0, err
 	}
 
 	// Remove Bearer prefix
@@ -29,6 +34,11 @@ func getUserIDFromToken(c *fiber.Ctx) (int, error) {
 	// Verify and parse the token
 	userID, err := verifyToken(token)
 	if err != nil {
+		log.Error().Err(err).
+			Str("tokenPrefix", token[:min(len(token), 10)]).
+			Str("method", c.Method()).
+			Str("path", c.Path()).
+			Msg("Token verification failed")
 		return 0, err
 	}
 
@@ -54,14 +64,23 @@ func GetSignUpPage(c *fiber.Ctx) error {
 }
 
 func GetItems(c *fiber.Ctx) error {
-	// Verify authentication
 	userID, err := getUserIDFromToken(c)
 	if err != nil {
 		log.Debug().Err(err).Msg("Authentication failed")
 		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
 	}
 
-	page, _ := strconv.Atoi(c.Query("page", "1"))
+	page, err := strconv.Atoi(c.Query("page", "1"))
+	if err != nil {
+		log.Error().Err(err).
+			Int("userId", userID).
+			Str("rawPage", c.Query("page")).
+			Str("default", "1").
+			Str("method", c.Method()).
+			Str("path", c.Path()).
+			Msg("Failed to parse page parameter")
+		page = 1 // Fallback to default
+	}
 	if page < 1 {
 		page = 1
 	}
@@ -82,15 +101,19 @@ func GetItems(c *fiber.Ctx) error {
 
 	if search != "" {
 		err = dal.DB.QueryRow(`
-			SELECT COUNT(*) FROM items 
-			WHERE (name LIKE ? OR description LIKE ?) AND user_id = ?`,
+            SELECT COUNT(*) FROM items 
+            WHERE (name LIKE ? OR description LIKE ?) AND user_id = ?`,
 			"%"+search+"%", "%"+search+"%", userID).Scan(&totalItems)
 		if err != nil {
-			logger.LogError(err, "Failed to count items with search", map[string]interface{}{
-				"userId": userID,
-				"search": search,
-			})
-			return c.Status(500).JSON(fiber.Map{"error": "Database error"})
+			fmt.Println(err)
+			log.Error().Err(err).
+				Int("userId", userID).
+				Str("search", search).
+				Str("query", "SELECT COUNT(*) FROM items WHERE (name LIKE ? OR description LIKE ?) AND user_id = ?").
+				Str("method", c.Method()).
+				Str("path", c.Path()).
+				Msg("Database query failed while counting items with search")
+			return c.Status(500).JSON(fiber.Map{"error": "Internal server error: failed to count items"})
 		}
 
 		rows, err = dal.DB.Query(`
@@ -104,28 +127,37 @@ func GetItems(c *fiber.Ctx) error {
 		err = dal.DB.QueryRow("SELECT COUNT(*) FROM items WHERE user_id = ?",
 			userID).Scan(&totalItems)
 		if err != nil {
-			logger.LogError(err, "Failed to count items", map[string]interface{}{
-				"userId": userID,
-			})
-			return c.Status(500).JSON(fiber.Map{"error": "Database error"})
+			fmt.Println(err)
+			log.Error().Err(err).
+				Int("userId", userID).
+				Str("query", "SELECT COUNT(*) FROM items WHERE user_id = ?").
+				Str("method", c.Method()).
+				Str("path", c.Path()).
+				Msg("Database query failed while counting items")
+			return c.Status(500).JSON(fiber.Map{"error": "Internal server error: failed to count items"})
 		}
 
 		rows, err = dal.DB.Query(`
-			SELECT id, name, description 
-			FROM items 
-			WHERE user_id = ? 
-			ORDER BY id DESC 
-			LIMIT ? OFFSET ?`,
+            SELECT id, name, description 
+            FROM items 
+            WHERE user_id = ? 
+            ORDER BY id DESC 
+            LIMIT ? OFFSET ?`,
 			userID, perPage, offset)
 	}
 
 	if err != nil {
-		logger.LogError(err, "Failed to fetch items", map[string]interface{}{
-			"userId": userID,
-			"page":   page,
-			"search": search,
-		})
-		return c.Status(500).JSON(fiber.Map{"error": "Database error"})
+		fmt.Println(err)
+		log.Error().Err(err).
+			Int("userId", userID).
+			Int("page", page).
+			Int("perPage", perPage).
+			Int("offset", offset).
+			Str("search", search).
+			Str("method", c.Method()).
+			Str("path", c.Path()).
+			Msg("Database query failed while fetching items")
+		return c.Status(500).JSON(fiber.Map{"error": "Internal server error: failed to fetch items"})
 	}
 	defer rows.Close()
 
@@ -135,12 +167,28 @@ func GetItems(c *fiber.Ctx) error {
 	for rows.Next() {
 		var item models.Item
 		if err := rows.Scan(&item.ID, &item.Name, &item.Description); err != nil {
-			logger.LogError(err, "Failed to scan item", map[string]interface{}{
-				"userId": userID,
-			})
-			return c.Status(500).JSON(fiber.Map{"error": "Database error"})
+			log.Error().Err(err).
+				Int("userId", userID).
+				Int("page", page).
+				Str("search", search).
+				Str("method", c.Method()).
+				Str("path", c.Path()).
+				Msg("Failed to scan item row from database result")
+			return c.Status(500).JSON(fiber.Map{"error": "Internal server error: failed to process item data"})
 		}
 		items = append(items, item)
+	}
+
+	if err = rows.Err(); err != nil {
+		fmt.Println(err)
+		log.Error().Err(err).
+			Int("userId", userID).
+			Int("page", page).
+			Str("search", search).
+			Str("method", c.Method()).
+			Str("path", c.Path()).
+			Msg("Error occurred while iterating database rows")
+		return c.Status(500).JSON(fiber.Map{"error": "Internal server error: failed to process items"})
 	}
 
 	log.Info().
@@ -168,7 +216,12 @@ func GetItem(c *fiber.Ctx) error {
 
 	id, err := c.ParamsInt("id")
 	if err != nil {
-		log.Debug().Err(err).Msg("Invalid ID parameter")
+		log.Error().Err(err).
+			Int("userId", userID).
+			Str("param", c.Params("id")).
+			Str("method", c.Method()).
+			Str("path", c.Path()).
+			Msg("Failed to parse item ID parameter")
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid ID"})
 	}
 
@@ -176,20 +229,23 @@ func GetItem(c *fiber.Ctx) error {
 
 	var item models.Item
 	err = dal.DB.QueryRow(`
-		SELECT id, name, description 
-		FROM items 
-		WHERE id = ? AND user_id = ?`,
+        SELECT id, name, description 
+        FROM items 
+        WHERE id = ? AND user_id = ?`,
 		id, userID).Scan(&item.ID, &item.Name, &item.Description)
 
 	if err == sql.ErrNoRows {
 		log.Debug().Int("userId", userID).Int("id", id).Msg("Item not found")
 		return c.Status(404).JSON(fiber.Map{"error": "Item not found"})
 	} else if err != nil {
-		logger.LogError(err, "Failed to fetch item", map[string]interface{}{
-			"userId": userID,
-			"id":     id,
-		})
-		return c.Status(500).JSON(fiber.Map{"error": "Database error"})
+		log.Error().Err(err).
+			Int("userId", userID).
+			Int("itemId", id).
+			Str("query", "SELECT id, name, description FROM items WHERE id = ? AND user_id = ?").
+			Str("method", c.Method()).
+			Str("path", c.Path()).
+			Msg("Database query failed while fetching single item")
+		return c.Status(500).JSON(fiber.Map{"error": "Internal server error: failed to fetch item"})
 	}
 
 	log.Info().Int("userId", userID).Int("id", id).Msg("Item retrieved successfully")
@@ -205,7 +261,12 @@ func CreateItem(c *fiber.Ctx) error {
 
 	item := new(models.Item)
 	if err := c.BodyParser(item); err != nil {
-		log.Debug().Err(err).Msg("Invalid item input")
+		log.Error().Err(err).
+			Int("userId", userID).
+			Str("body", string(c.Body())).
+			Str("method", c.Method()).
+			Str("path", c.Path()).
+			Msg("Failed to parse item creation request body")
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid input"})
 	}
 
@@ -216,16 +277,19 @@ func CreateItem(c *fiber.Ctx) error {
 		Msg("Creating new item")
 
 	result, err := dal.DB.Exec(`
-		INSERT INTO items (name, description, user_id) 
-		VALUES (?, ?, ?)`,
+        INSERT INTO items (name, description, user_id) 
+        VALUES (?, ?, ?)`,
 		item.Name, item.Description, userID)
 	if err != nil {
-		logger.LogError(err, "Failed to create item", map[string]interface{}{
-			"userId":      userID,
-			"name":        item.Name,
-			"description": item.Description,
-		})
-		return c.Status(500).JSON(fiber.Map{"error": "Database error"})
+		log.Error().Err(err).
+			Int("userId", userID).
+			Str("name", item.Name).
+			Str("description", item.Description).
+			Str("query", "INSERT INTO items (name, description, user_id) VALUES (?, ?, ?)").
+			Str("method", c.Method()).
+			Str("path", c.Path()).
+			Msg("Database query failed while inserting new item")
+		return c.Status(500).JSON(fiber.Map{"error": "Internal server error: failed to create item"})
 	}
 
 	id, _ := result.LastInsertId()
@@ -249,13 +313,24 @@ func UpdateItem(c *fiber.Ctx) error {
 
 	id, err := c.ParamsInt("id")
 	if err != nil {
-		log.Debug().Err(err).Msg("Invalid ID parameter")
+		log.Error().Err(err).
+			Int("userId", userID).
+			Str("param", c.Params("id")).
+			Str("method", c.Method()).
+			Str("path", c.Path()).
+			Msg("Failed to parse item ID parameter for update")
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid ID"})
 	}
 
 	item := new(models.Item)
 	if err := c.BodyParser(item); err != nil {
-		log.Debug().Err(err).Msg("Invalid item input")
+		log.Error().Err(err).
+			Int("userId", userID).
+			Int("itemId", id).
+			Str("body", string(c.Body())).
+			Str("method", c.Method()).
+			Str("path", c.Path()).
+			Msg("Failed to parse item update request body")
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid input"})
 	}
 
@@ -267,18 +342,21 @@ func UpdateItem(c *fiber.Ctx) error {
 		Msg("Updating item")
 
 	result, err := dal.DB.Exec(`
-		UPDATE items 
-		SET name = ?, description = ? 
-		WHERE id = ? AND user_id = ?`,
+        UPDATE items 
+        SET name = ?, description = ? 
+        WHERE id = ? AND user_id = ?`,
 		item.Name, item.Description, id, userID)
 	if err != nil {
-		logger.LogError(err, "Failed to update item", map[string]interface{}{
-			"userId":      userID,
-			"id":          id,
-			"name":        item.Name,
-			"description": item.Description,
-		})
-		return c.Status(500).JSON(fiber.Map{"error": "Database error"})
+		log.Error().Err(err).
+			Int("userId", userID).
+			Int("itemId", id).
+			Str("name", item.Name).
+			Str("description", item.Description).
+			Str("query", "UPDATE items SET name = ?, description = ? WHERE id = ? AND user_id = ?").
+			Str("method", c.Method()).
+			Str("path", c.Path()).
+			Msg("Database query failed while updating item")
+		return c.Status(500).JSON(fiber.Map{"error": "Internal server error: failed to update item"})
 	}
 
 	rowsAffected, _ := result.RowsAffected()
@@ -306,7 +384,12 @@ func DeleteItem(c *fiber.Ctx) error {
 
 	id, err := c.ParamsInt("id")
 	if err != nil {
-		log.Debug().Err(err).Msg("Invalid ID parameter")
+		log.Error().Err(err).
+			Int("userId", userID).
+			Str("param", c.Params("id")).
+			Str("method", c.Method()).
+			Str("path", c.Path()).
+			Msg("Failed to parse item ID parameter for deletion")
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid ID"})
 	}
 
@@ -315,11 +398,14 @@ func DeleteItem(c *fiber.Ctx) error {
 	result, err := dal.DB.Exec("DELETE FROM items WHERE id = ? AND user_id = ?",
 		id, userID)
 	if err != nil {
-		logger.LogError(err, "Failed to delete item", map[string]interface{}{
-			"userId": userID,
-			"id":     id,
-		})
-		return c.Status(500).JSON(fiber.Map{"error": "Database error"})
+		log.Error().Err(err).
+			Int("userId", userID).
+			Int("itemId", id).
+			Str("query", "DELETE FROM items WHERE id = ? AND user_id = ?").
+			Str("method", c.Method()).
+			Str("path", c.Path()).
+			Msg("Database query failed while deleting item")
+		return c.Status(500).JSON(fiber.Map{"error": "Internal server error: failed to delete item"})
 	}
 
 	rowsAffected, _ := result.RowsAffected()
@@ -330,4 +416,12 @@ func DeleteItem(c *fiber.Ctx) error {
 
 	log.Info().Int("userId", userID).Int("id", id).Msg("Item deleted successfully")
 	return c.SendStatus(204)
+}
+
+// Helper function to avoid runtime panic
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
