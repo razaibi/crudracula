@@ -1,12 +1,14 @@
 package middlewares
 
 import (
+	"crudracula/logic" // Import the logic package to use the token verification
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/rs/zerolog/log"
 )
 
-// Add this middleware function to main.go:
+// AuthMiddleware validates JWT tokens and extracts user information
 func AuthMiddleware(c *fiber.Ctx) error {
 	// Skip auth for public routes
 	if isPublicPath(c.Path()) {
@@ -20,21 +22,25 @@ func AuthMiddleware(c *fiber.Ctx) error {
 	}
 
 	// Remove "Bearer " prefix if present
-	token := auth
+	tokenString := auth
 	if strings.HasPrefix(auth, "Bearer ") {
-		token = auth[7:]
+		tokenString = auth[7:]
 	}
 
-	// TODO: Implement proper JWT validation
-	// For now, just check if token exists
-	if token == "" {
-		return c.Status(401).JSON(fiber.Map{"error": "Invalid token"})
+	// Use the VerifyToken function from logic package
+	userID, err := logic.VerifyToken(tokenString)
+	if err != nil {
+		log.Error().Err(err).Str("token", tokenString).Msg("Invalid token")
+		return c.Status(401).JSON(fiber.Map{"error": "User not authenticated"})
 	}
 
+	// Store user ID in context
+	c.Locals("userID", userID)
 	return c.Next()
 }
 
 func isPublicPath(path string) bool {
+	// Public paths same as before
 	publicPaths := []string{
 		"/api/login",
 		"/api/signup",
