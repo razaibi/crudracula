@@ -28,52 +28,96 @@ func GetLogoutPage(c *fiber.Ctx) error {
 	})
 }
 
+// Signup handles user registration
 func Signup(c *fiber.Ctx) error {
-	req := new(models.SignupRequest)
-	if err := c.BodyParser(req); err != nil {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid input"})
+	var req models.SignupRequest
+	if err := c.BodyParser(&req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "Invalid request body")
 	}
 
-	// Validate email and password
-	if !isValidEmail(req.Email) {
-		return c.Status(400).JSON(fiber.Map{"error": "Invalid email format"})
-	}
-	if len(req.Password) < 8 {
-		return c.Status(400).JSON(fiber.Map{"error": "Password must be at least 8 characters"})
+	// Validate input
+	if req.Email == "" || req.Password == "" {
+		return fiber.NewError(fiber.StatusBadRequest, "Email and password are required")
 	}
 
 	// Hash password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to hash password")
-		return c.Status(500).JSON(fiber.Map{"error": "Server error"})
+		return fiber.NewError(fiber.StatusInternalServerError, "Failed to create user")
 	}
+
+	// Start a transaction
+	tx, err := dal.DB.Begin()
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to start transaction")
+		return fiber.NewError(fiber.StatusInternalServerError, "Database error")
+	}
+	defer tx.Rollback() // Rollback if not committed
 
 	// Check if user already exists
-	var exists bool
-	err = dal.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM users WHERE email = ?)", req.Email).Scan(&exists)
+	var existingUser int
+	err = tx.QueryRow("SELECT COUNT(*) FROM users WHERE email = ?", req.Email).Scan(&existingUser)
 	if err != nil {
-		log.Error().Err(err).Msg("Database error checking user existence")
-		return c.Status(500).JSON(fiber.Map{"error": "Database error"})
+		log.Error().Err(err).Msg("Failed to check existing user")
+		return fiber.NewError(fiber.StatusInternalServerError, "Database error")
 	}
-	if exists {
-		return c.Status(400).JSON(fiber.Map{"error": "Email already registered"})
+	if existingUser > 0 {
+		return fiber.NewError(fiber.StatusConflict, "User already exists")
 	}
 
-	// Create user
-	result, err := dal.DB.Exec(
-		"INSERT INTO users (email, password, created_at) VALUES (?, ?, ?)",
-		req.Email, hashedPassword, time.Now(),
-	)
+	// Get default role ID (we'll find or create a 'user' role)
+	var roleID int
+	err = tx.QueryRow("SELECT id FROM roles WHERE name = 'user'").Scan(&roleID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			// Create a 'user' role if it doesn't exist
+			res, err := tx.Exec(
+				"INSERT INTO roles (name, description) VALUES (?, ?)",
+				"user", "Standard user with basic permissions")
+			if err != nil {
+				log.Error().Err(err).Msg("Failed to create user role")
+				return fiber.NewError(fiber.StatusInternalServerError, "Failed to create user role")
+			}
+
+			roleID64, err := res.LastInsertId()
+			if err != nil {
+				log.Error().Err(err).Msg("Failed to get role ID")
+				return fiber.NewError(fiber.StatusInternalServerError, "Database error")
+			}
+			roleID = int(roleID64)
+
+			// Assign basic permissions to user role (read_item at minimum)
+			_, err = tx.Exec(
+				"INSERT INTO role_permissions (role_id, permission_id) SELECT ?, id FROM permissions WHERE name = 'read_item'",
+				roleID)
+			if err != nil {
+				log.Error().Err(err).Msg("Failed to assign permissions to user role")
+				return fiber.NewError(fiber.StatusInternalServerError, "Failed to set up user permissions")
+			}
+		} else {
+			log.Error().Err(err).Msg("Failed to get user role")
+			return fiber.NewError(fiber.StatusInternalServerError, "Database error")
+		}
+	}
+
+	// Insert new user with the role ID
+	_, err = tx.Exec(
+		"INSERT INTO users (email, password, role_id) VALUES (?, ?, ?)",
+		req.Email, hashedPassword, roleID)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to create user")
-		return c.Status(500).JSON(fiber.Map{"error": "Database error"})
+		return fiber.NewError(fiber.StatusInternalServerError, "Failed to create user")
 	}
 
-	id, _ := result.LastInsertId()
-	return c.Status(201).JSON(fiber.Map{
-		"id":    id,
-		"email": req.Email,
+	// Commit transaction
+	if err = tx.Commit(); err != nil {
+		log.Error().Err(err).Msg("Failed to commit transaction")
+		return fiber.NewError(fiber.StatusInternalServerError, "Database error")
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+		"message": "User created successfully",
 	})
 }
 
@@ -92,6 +136,7 @@ func Login(c *fiber.Ctx) error {
 	if err == sql.ErrNoRows {
 		return c.Status(401).JSON(fiber.Map{"error": "Invalid credentials"})
 	} else if err != nil {
+		fmt.Println(err)
 		log.Error().Err(err).Msg("Database error during login")
 		return c.Status(500).JSON(fiber.Map{"error": "Database error"})
 	}
@@ -140,6 +185,7 @@ func RequestPasswordReset(c *fiber.Ctx) error {
 		token, expires, req.Email,
 	)
 	if err != nil {
+		fmt.Println(err)
 		log.Error().Err(err).Msg("Failed to update reset token")
 		return c.Status(500).JSON(fiber.Map{"error": "Database error"})
 	}
@@ -179,6 +225,7 @@ func ResetPassword(c *fiber.Ctx) error {
 		hashedPassword, req.Token, time.Now(),
 	)
 	if err != nil {
+		fmt.Println(err)
 		log.Error().Err(err).Msg("Failed to update password")
 		return c.Status(500).JSON(fiber.Map{"error": "Database error"})
 	}
