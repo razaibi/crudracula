@@ -11,7 +11,7 @@
         .header-container {
             width: 100%;
             background-color: #ffffff;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
         .main-header {
@@ -191,26 +191,18 @@
         <div class="main-header">
             <a href="#" class="logo">Items Management</a>
             <div class="search-container">
-                <input type="text" 
-                    class="search-bar"
-                    id="searchInput" 
-                    placeholder="Search items..."
-                    onkeyup="handleSearch(event)"
-                >
-                <button class="action-button" 
-                    onclick="toggleView('card')" id="cardViewBtn" 
-                >
+                <input type="text" class="search-bar" id="searchInput" placeholder="Search items..."
+                    onkeyup="handleSearch(event)">
+                <button class="action-button" onclick="toggleView('card')" id="cardViewBtn">
                     <i class="icon icon-apps"></i>
                 </button>
-                <button class="action-button"
-                    onclick="toggleView('tile')" id="tileViewBtn" 
-                >
+                <button class="action-button" onclick="toggleView('tile')" id="tileViewBtn">
                     <i class="icon icon-menu"></i>
                 </button>
             </div>
-            <span class="items-count" id="itemSummary" ></span>
+            <span class="items-count" id="itemSummary"></span>
             <button class="add-new-button" onclick="openDrawer()">
-                <i class="icon icon-plus"></i> 
+                <i class="icon icon-plus"></i>
             </button>
         </div>
         <div class="sub-header">
@@ -422,7 +414,9 @@
                 });
 
                 if (response.status === 401) {
-                    // Unauthorized - redirect to login
+                    // Clear invalid token before redirecting
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('user');
                     window.location.href = '/login';
                     return;
                 }
@@ -726,7 +720,7 @@
         function displayUserInfo() {
             const user = JSON.parse(localStorage.getItem('user') || '{}');
             const header = document.querySelector('.columns.py-2');
-            var userNameInfo =  `${user.email || 'User'}`;
+            var userNameInfo = `${user.email || 'User'}`;
             document.getElementById('userGreeting').innerHTML = `Hi ${userNameInfo}`;
         }
 
