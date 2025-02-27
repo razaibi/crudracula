@@ -184,6 +184,7 @@
 
         // Check for remember me on page load
         window.onload = function() {
+
             if (localStorage.getItem('remember') === 'true') {
                 const savedEmail = localStorage.getItem('savedEmail');
                 if (savedEmail) {
@@ -195,7 +196,26 @@
             // Check if user is already logged in
             const token = localStorage.getItem('token');
             if (token) {
-                window.location.href = '/';
+                // Validate token before redirecting
+                fetch(`${API_URL}/items`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                })
+                .then(response => {
+                    if (response.ok) {
+                        window.location.href = '/';
+                    } else {
+                        // Token is invalid, clear it
+                        localStorage.removeItem('token');
+                        localStorage.removeItem('user');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error validating token:', error);
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('user');
+                });
             }
         };
     </script>
